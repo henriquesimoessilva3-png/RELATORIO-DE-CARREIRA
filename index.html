@@ -169,8 +169,9 @@ thead th.sort-asc::after{content:' ↑';font-size:9px;opacity:.9}
 thead th.sort-desc::after{content:' ↓';font-size:9px;opacity:.9}
 tbody tr{border-bottom:1px solid var(--row-alt)}
 tbody tr:nth-child(even){background:var(--row-alt)}
-tbody tr.best-season{background:var(--gold-bg)!important;border-left:3px solid var(--gold)}
+tbody tr.best-season{background:var(--gold-bg)!important;border-left:3px solid var(--gold);position:relative}
 tbody tr.best-season td{color:var(--best-season-text)}
+tbody tr.best-season td:first-child::before{content:'★';position:absolute;left:-2px;top:50%;transform:translate(-50%,-50%);font-size:9px;color:var(--gold);pointer-events:none}
 td{padding:6px 10px;text-align:right;white-space:nowrap}
 td:first-child{text-align:left;font-size:12px;color:var(--text-dim);font-weight:500}
 td:nth-child(2){text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
@@ -179,9 +180,10 @@ td:nth-child(2){text-align:left;max-width:160px;overflow:hidden;text-overflow:el
 .totals-row td:first-child{font-family:'Bebas Neue';font-size:13px;letter-spacing:1px;color:var(--gold)}
 
 .best-label{
-  display:inline-flex;align-items:center;gap:3px;
-  background:rgba(232,180,0,0.15);border:1px solid rgba(232,180,0,0.3);color:var(--gold);
-  padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  display:block;
+  background:rgba(232,180,0,0.18);border:1px solid rgba(232,180,0,0.35);color:var(--gold);
+  padding:0px 4px;border-radius:3px;font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  line-height:1.4;margin-bottom:1px;width:fit-content;
 }
 
 .no-results{grid-column:1/-1;text-align:center;padding:80px 20px;color:var(--text-muted)}
@@ -1031,10 +1033,39 @@ function cellStyle(val,range,isNeg=false){
   return `background:rgba(${rgb},${alpha});border-radius:3px;`;
 }
 
+// Manual best-season overrides: {playerId: {s, t}}
+const BEST_OVERRIDES={
+  1:{s:'18/19',t:'Valencia'},              // Neto
+  2:{s:'23/24',t:'São Luiz'},              // Raul
+  3:{s:'23/24',t:'Athletico Paranaense'},  // Leo Linck
+  4:{s:'23/24',t:'Independiente Juniors'}, // Cristhian Loor
+  9:{s:'24/25',t:'Toronto II'},            // Ythallo
+  10:{s:'23/24',t:'Botafogo'},             // Alexander Barboza
+  30:{s:'20/21',t:'Lazio'}                 // Joaquín Correa
+};
+
 function getBestSeason(player){
   const rows=player.career.filter(r=>r.gp&&r.gp>0);
   if(!rows.length)return null;
-  if(player.isGK) return rows.reduce((b,r)=>(r.min||0)>(b.min||0)?r:b);
+  // Manual override for specific players
+  if(BEST_OVERRIDES[player.id]){
+    const ov=BEST_OVERRIDES[player.id];
+    const found=player.career.find(r=>r.s===ov.s&&r.t===ov.t);
+    if(found)return found;
+  }
+  // Goalkeepers: most games played (GP), tiebreak = most minutes
+  if(player.isGK){
+    return rows.reduce((b,r)=>{
+      if((r.gp||0)>(b.gp||0))return r;
+      if((r.gp||0)===(b.gp||0)&&(r.min||0)>(b.min||0))return r;
+      return b;
+    });
+  }
+  // Zagueiros: highest minutes on field
+  if(player.position==='Zagueiro'){
+    return rows.reduce((b,r)=>(r.min||0)>(b.min||0)?r:b);
+  }
+  // All others: most goals+assists, tiebreak = most minutes
   return rows.reduce((b,r)=>{
     const sc=(r.goals||0)+(r.ast||0);
     const bs=(b.goals||0)+(b.ast||0);
@@ -1119,7 +1150,7 @@ function renderPlayer(player){
       r._i_num=i+1; // BeSoccer original row number
       const isBest=best&&r===best;
       const rowClass=isBest?'best-season':'';
-      const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
+      const bestTag=isBest?`<sup class="best-label">Destaque</sup>`:'';
       out+=`<tr class="${rowClass}">`;
       cols.forEach(([lbl,key,isNeg,cls])=>{
         const val=r[key];
@@ -1136,11 +1167,16 @@ function renderPlayer(player){
   }
 
   function buildTotRow(){
+    // Count leading non-data cols (_i hidden, s, t, age) for colspan
+    const skipKeys=['_i','s','t','age'];
     let out='<tr class="totals-row">';
+    let skipped=false;
+    const span=cols.filter(([l,k])=>skipKeys.includes(k)).length;
     cols.forEach(([lbl,key])=>{
-      if(key==='_i'){out+=`<td></td>`;return;}
-      if(key==='s'){out+=`<td>TOTAL</td>`;return;}
-      if(key==='t'||key==='age'){out+=`<td></td>`;return;}
+      if(skipKeys.includes(key)){
+        if(!skipped){ out+=`<td colspan="${span}">TOTAL</td>`; skipped=true; }
+        return;
+      }
       const v=tot[key];
       out+=`<td>${key==='min'?fmtMin(v):fmt(v)}</td>`;
     });
@@ -1245,7 +1281,7 @@ function handleTableSort(e){
       r._i_num=i+1; // BeSoccer original row number
       const isBest=best&&r===best;
       const rowClass=isBest?'best-season':'';
-      const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
+      const bestTag=isBest?`<sup class="best-label">Destaque</sup>`:'';
       out+=`<tr class="${rowClass}">`;
       cols.forEach(([lbl,key,isNeg,cls])=>{
         const val=r[key];
@@ -1261,11 +1297,16 @@ function handleTableSort(e){
     return out;
   }
   function buildTotRow(){
+    // Count leading non-data cols (_i hidden, s, t, age) for colspan
+    const skipKeys=['_i','s','t','age'];
     let out='<tr class="totals-row">';
+    let skipped=false;
+    const span=cols.filter(([l,k])=>skipKeys.includes(k)).length;
     cols.forEach(([lbl,key])=>{
-      if(key==='_i'){out+=`<td></td>`;return;}
-      if(key==='s'){out+=`<td>TOTAL</td>`;return;}
-      if(key==='t'||key==='age'){out+=`<td></td>`;return;}
+      if(skipKeys.includes(key)){
+        if(!skipped){ out+=`<td colspan="${span}">TOTAL</td>`; skipped=true; }
+        return;
+      }
       const v=tot[key];
       out+=`<td>${key==='min'?fmtMin(v):fmt(v)}</td>`;
     });
