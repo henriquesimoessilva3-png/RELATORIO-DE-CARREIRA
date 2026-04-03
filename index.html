@@ -150,6 +150,7 @@ body.light .player-card{box-shadow:0 2px 8px rgba(0,0,0,0.06)}
 .total-item{text-align:center}
 .total-val{font-family:'Bebas Neue';font-size:19px;color:var(--total-val-color);line-height:1}
 .total-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.col-num{display:none}
 .divider{width:1px;background:var(--divider);align-self:stretch}
 
 /* ── TABLE ──────────────────────────────── */
@@ -1088,32 +1089,34 @@ function renderPlayer(player){
   }
 
   // column definitions: [label, key, isNeg, extraClass]
-  const GK_COLS  = [['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc','inv',''],['YC','yc',true,''],['RC','rc',true,'']];
-  const OUT_COLS = [['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const GK_COLS  = [['#','_i',false,'col-num'],['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc','inv',''],['YC','yc',true,''],['RC','rc',true,'']];
+  const OUT_COLS = [['#','_i',false,'col-num'],['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
   const cols = player.isGK ? GK_COLS : OUT_COLS;
 
   const ranges = {gp:rangeGP,sta:rangeSta,min:rangeMin,goals:rangeGoals,ast:rangeAst,gc:rangeGC,yc:rangeYC};
 
   function buildTbody(rows, sortKey, sortDir){
     const indexed = rows.map((r,i)=>({r,i}));
-    const CHRONO_KEYS = ['s','age','_order']; // these sort by season
     indexed.sort((a,b)=>{
-      if(!sortKey || CHRONO_KEYS.includes(sortKey)){
-        // Primary: season string (desc = newest first, asc = oldest first)
+      if(!sortKey || sortKey==='_order' || sortKey==='_i'){
+        // Default: sort by _i directly (pure BeSoccer order / inversion)
+        return sortDir==='desc' ? b.i-a.i : a.i-b.i;
+      }
+      if(sortKey==='s'){
+        // Temp column: season string, tiebreak = _i asc (BeSoccer order within season)
         const sa=a.r.s||'', sb=b.r.s||'';
         const c=sortDir==='desc'?sb.localeCompare(sa):sa.localeCompare(sb);
-        if(c!==0) return c;
-        // Secondary: always original BeSoccer order (ascending _i) within same season
-        return a.i-b.i;
+        return c!==0 ? c : a.i-b.i;
       }
-      // value columns: sort by value, tiebreak = original index asc always
+      // All other columns (age, gp, min, goals etc): sort by value, tiebreak = _i asc
       let av=a.r[sortKey], bv=b.r[sortKey];
       av=av??-1; bv=bv??-1;
       const c=sortDir==='asc'?av-bv:bv-av;
       return c!==0 ? c : a.i-b.i;
     });
     let out='';
-    indexed.forEach(({r})=>{
+    indexed.forEach(({r,i})=>{
+      r._i_num=i+1; // BeSoccer original row number
       const isBest=best&&r===best;
       const rowClass=isBest?'best-season':'';
       const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
@@ -1122,7 +1125,7 @@ function renderPlayer(player){
         const val=r[key];
         const rng=ranges[key]||null;
         const st=(key!=='s'&&key!=='t'&&key!=='age')?cellStyle(val,rng,isNeg):'';
-        const display=key==='min'?fmtMin(val):fmt(val);
+        const display=key==='_i'?(r._i_num):key==='min'?fmtMin(val):fmt(val);
         const extraTag=(key==='s')?bestTag:'';
         const title=(key==='t')?` title="${val}"`:'';
         out+=`<td class="${cls}" style="${st}"${title}>${display}${extraTag}</td>`;
@@ -1135,6 +1138,7 @@ function renderPlayer(player){
   function buildTotRow(){
     let out='<tr class="totals-row">';
     cols.forEach(([lbl,key])=>{
+      if(key==='_i'){out+=`<td></td>`;return;}
       if(key==='s'){out+=`<td>TOTAL</td>`;return;}
       if(key==='t'||key==='age'){out+=`<td></td>`;return;}
       const v=tot[key];
@@ -1150,7 +1154,8 @@ function renderPlayer(player){
   sortState[pid]={key:'_order',dir:'desc'};
 
   const thHtml=cols.map(([lbl,key,isNeg,cls],i)=>{
-    const align=(i<2)?'text-align:left':'';
+    if(key==='_i') return `<th class="col-num" style="cursor:default">${lbl}</th>`;
+    const align=(i<3)?'text-align:left':'';
     const sortCls=(key==='s'||key==='age')?' sort-desc':'';
     return `<th class="${cls}${sortCls}" data-key="${key}" data-pid="${pid}" style="${align}">${lbl}</th>`;
   }).join('');
@@ -1215,19 +1220,20 @@ function handleTableSort(e){
   const rangeYC   =getColRange(validRows,'yc');
   const tot=player.totals;
   const ranges={gp:rangeGP,sta:rangeSta,min:rangeMin,goals:rangeGoals,ast:rangeAst,gc:rangeGC,yc:rangeYC};
-  const GK_COLS  =[['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc','inv',''],['YC','yc',true,''],['RC','rc',true,'']];
-  const OUT_COLS =[['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const GK_COLS  =[['#','_i',false,'col-num'],['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc','inv',''],['YC','yc',true,''],['RC','rc',true,'']];
+  const OUT_COLS =[['#','_i',false,'col-num'],['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
   const cols=player.isGK?GK_COLS:OUT_COLS;
 
   function buildTbody(rows,sk,sd){
     const indexed=rows.map((r,i)=>({r,i}));
-    const CHRONO_KEYS=['s','age','_order'];
     indexed.sort((a,b)=>{
-      if(!sk||CHRONO_KEYS.includes(sk)){
+      if(!sk||sk==='_order'||sk==='_i'){
+        return sd==='desc'?b.i-a.i:a.i-b.i;
+      }
+      if(sk==='s'){
         const sa=a.r.s||'',sb=b.r.s||'';
         const c=sd==='desc'?sb.localeCompare(sa):sa.localeCompare(sb);
-        if(c!==0)return c;
-        return a.i-b.i;
+        return c!==0?c:a.i-b.i;
       }
       let av=a.r[sk],bv=b.r[sk];
       av=av??-1;bv=bv??-1;
@@ -1235,7 +1241,8 @@ function handleTableSort(e){
       return c!==0?c:a.i-b.i;
     });
     let out='';
-    indexed.forEach(({r})=>{
+    indexed.forEach(({r,i})=>{
+      r._i_num=i+1; // BeSoccer original row number
       const isBest=best&&r===best;
       const rowClass=isBest?'best-season':'';
       const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
@@ -1244,7 +1251,7 @@ function handleTableSort(e){
         const val=r[key];
         const rng=ranges[key]||null;
         const st=(key!=='s'&&key!=='t'&&key!=='age')?cellStyle(val,rng,isNeg):'';
-        const display=key==='min'?fmtMin(val):fmt(val);
+        const display=key==='_i'?(r._i_num):key==='min'?fmtMin(val):fmt(val);
         const extraTag=(key==='s')?bestTag:'';
         const title=(key==='t')?` title="${val}"`:'';
         out+=`<td class="${cls}" style="${st}"${title}>${display}${extraTag}</td>`;
@@ -1256,6 +1263,7 @@ function handleTableSort(e){
   function buildTotRow(){
     let out='<tr class="totals-row">';
     cols.forEach(([lbl,key])=>{
+      if(key==='_i'){out+=`<td></td>`;return;}
       if(key==='s'){out+=`<td>TOTAL</td>`;return;}
       if(key==='t'||key==='age'){out+=`<td></td>`;return;}
       const v=tot[key];
