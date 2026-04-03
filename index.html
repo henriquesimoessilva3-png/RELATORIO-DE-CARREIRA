@@ -159,8 +159,13 @@ thead th{
   background:var(--th-bg);padding:7px 10px;font-size:10px;font-weight:600;
   text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);
   text-align:right;border-bottom:1px solid var(--card-border);white-space:nowrap;
+  cursor:pointer;user-select:none;transition:color .15s,background .15s;position:relative;
 }
 thead th:first-child,thead th:nth-child(2){text-align:left}
+thead th:hover{color:var(--text);background:rgba(232,180,0,0.06)}
+thead th.sort-asc,thead th.sort-desc{color:var(--gold)}
+thead th.sort-asc::after{content:' ↑';font-size:9px;opacity:.9}
+thead th.sort-desc::after{content:' ↓';font-size:9px;opacity:.9}
 tbody tr{border-bottom:1px solid var(--row-alt)}
 tbody tr:nth-child(even){background:var(--row-alt)}
 tbody tr.best-season{background:var(--gold-bg)!important;border-left:3px solid var(--gold)}
@@ -1000,42 +1005,67 @@ function renderPlayer(player){
       <div class="total-item"><div class="total-val">${fmt(tot.yc)}</div><div class="total-lbl">Amarelos</div></div>`;
   }
 
-  const thead=player.isGK
-    ?`<tr><th>Temp.</th><th>Time</th><th class="col-age">Idade</th><th>GP</th><th class="col-sta">Sta</th><th>Min</th><th>GC</th><th>YC</th><th>RC</th></tr>`
-    :`<tr><th>Temp.</th><th>Time</th><th class="col-age">Idade</th><th>GP</th><th class="col-sta">Sta</th><th>Min</th><th>Gols</th><th>Ast</th><th>YC</th><th>RC</th></tr>`;
+  // column definitions: [label, key, isNeg, extraClass]
+  const GK_COLS  = [['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc',true,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const OUT_COLS = [['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const cols = player.isGK ? GK_COLS : OUT_COLS;
 
-  let tbody='';
-  validRows.forEach(r=>{
-    const isBest=best&&r===best;
-    const rowClass=isBest?'best-season':'';
-    const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
-    if(player.isGK){
-      tbody+=`<tr class="${rowClass}">
-        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td class="col-age">${fmt(r.age)}</td>
-        <td style="${cellStyle(r.gp,rangeGP)}">${fmt(r.gp)}</td>
-        <td class="col-sta" style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
-        <td style="${cellStyle(r.min,rangeMin)}">${fmtMin(r.min)}</td>
-        <td style="${cellStyle(r.gc,rangeGC,true)}">${fmt(r.gc)}</td>
-        <td style="${cellStyle(r.yc,rangeYC,true)}">${fmt(r.yc)}</td>
-        <td style="${r.rc&&r.rc>0?cellStyle(r.rc,{min:1,max:1},true):''}">${fmt(r.rc)}</td>
-      </tr>`;
-    }else{
-      tbody+=`<tr class="${rowClass}">
-        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td class="col-age">${fmt(r.age)}</td>
-        <td style="${cellStyle(r.gp,rangeGP)}">${fmt(r.gp)}</td>
-        <td class="col-sta" style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
-        <td style="${cellStyle(r.min,rangeMin)}">${fmtMin(r.min)}</td>
-        <td style="${cellStyle(r.goals,rangeGoals)}">${fmt(r.goals)}</td>
-        <td style="${cellStyle(r.ast,rangeAst)}">${fmt(r.ast)}</td>
-        <td style="${cellStyle(r.yc,rangeYC,true)}">${fmt(r.yc)}</td>
-        <td style="${r.rc&&r.rc>0?cellStyle(r.rc,{min:1,max:1},true):''}">${fmt(r.rc)}</td>
-      </tr>`;
+  const ranges = {gp:rangeGP,sta:rangeSta,min:rangeMin,goals:rangeGoals,ast:rangeAst,gc:rangeGC,yc:rangeYC};
+
+  function buildTbody(rows, sortKey, sortDir){
+    let sorted = [...rows];
+    if(sortKey){
+      sorted.sort((a,b)=>{
+        let av=a[sortKey], bv=b[sortKey];
+        // season string sort: treat as string chronological
+        if(sortKey==='s'){ av=av||''; bv=bv||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
+        if(sortKey==='t'){ av=av||''; bv=bv||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
+        av=av??-1; bv=bv??-1;
+        return sortDir==='asc'?av-bv:bv-av;
+      });
     }
-  });
+    let out='';
+    sorted.forEach(r=>{
+      const isBest=best&&r===best;
+      const rowClass=isBest?'best-season':'';
+      const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
+      out+=`<tr class="${rowClass}">`;
+      cols.forEach(([lbl,key,isNeg,cls])=>{
+        const val=r[key];
+        const rng=ranges[key]||null;
+        const st=(key!=='s'&&key!=='t'&&key!=='age')?cellStyle(val,rng,isNeg):'';
+        const display=key==='min'?fmtMin(val):fmt(val);
+        const extraTag=(key==='s')?bestTag:'';
+        const title=(key==='t')?` title="${val}"`:'';
+        out+=`<td class="${cls}" style="${st}"${title}>${display}${extraTag}</td>`;
+      });
+      out+='</tr>';
+    });
+    return out;
+  }
 
-  const totRow=player.isGK
-    ?`<tr class="totals-row"><td>TOTAL</td><td></td><td></td><td>${fmt(tot.gp)}</td><td>${fmt(tot.sta)}</td><td>${fmtMin(tot.min)}</td><td>${fmt(tot.gc)}</td><td>${fmt(tot.yc)}</td><td>${fmt(tot.rc)}</td></tr>`
-    :`<tr class="totals-row"><td>TOTAL</td><td></td><td></td><td>${fmt(tot.gp)}</td><td>${fmt(tot.sta)}</td><td>${fmtMin(tot.min)}</td><td>${fmt(tot.goals)}</td><td>${fmt(tot.ast)}</td><td>${fmt(tot.yc)}</td><td>${fmt(tot.rc)}</td></tr>`;
+  function buildTotRow(){
+    let out='<tr class="totals-row">';
+    cols.forEach(([lbl,key])=>{
+      if(key==='s'){out+=`<td>TOTAL</td>`;return;}
+      if(key==='t'||key==='age'){out+=`<td></td>`;return;}
+      const v=tot[key];
+      out+=`<td>${key==='min'?fmtMin(v):fmt(v)}</td>`;
+    });
+    out+='</tr>';
+    return out;
+  }
+
+  const pid=player.id;
+  // default: no sort (natural/chronological order)
+  const initTbody=buildTbody(validRows,'s','desc')+buildTotRow();
+  sortState[pid]={key:'s',dir:'desc'};
+
+  const thHtml=cols.map(([lbl,key,isNeg,cls],i)=>{
+    const align=(i<2)?'text-align:left':'';
+    const sortCls=key==='s'?' sort-desc':'';
+    return `<th class="${cls}${sortCls}" data-key="${key}" data-pid="${pid}" style="${align}">${lbl}</th>`;
+  }).join('');
 
   return `<div class="player-card" data-pos="${player.position}" data-name="${player.name.toLowerCase()}" style="${posStyle}">
     <div class="card-header">
@@ -1054,9 +1084,97 @@ function renderPlayer(player){
         <div class="card-totals">${totHtml}</div>
       </div>
     </div>
-    <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}${totRow}</tbody></table></div>
+    <div class="table-wrap">
+      <table data-pid="${pid}">
+        <thead><tr>${thHtml}</tr></thead>
+        <tbody>${initTbody}</tbody>
+      </table>
+    </div>
   </div>`;
 }
+
+// ── TABLE SORT STATE & HANDLER ────────────────────────
+const sortState = {}; // pid -> {key, dir}
+
+function handleTableSort(e){
+  const th=e.target.closest('th[data-key]');
+  if(!th)return;
+  const key=th.dataset.key;
+  const pid=parseInt(th.dataset.pid);
+  const player=players.find(p=>p.id===pid);
+  if(!player)return;
+
+  // toggle dir
+  const cur=sortState[pid]||{key:null,dir:'asc'};
+  const newDir=(cur.key===key&&cur.dir==='asc')?'desc':'asc';
+  sortState[pid]={key,dir:newDir};
+
+  // update th classes in this table
+  const table=th.closest('table');
+  table.querySelectorAll('th').forEach(t=>{t.classList.remove('sort-asc','sort-desc');});
+  th.classList.add(newDir==='asc'?'sort-asc':'sort-desc');
+
+  // rebuild tbody
+  const best=getBestSeason(player);
+  const validRows=player.career.filter(r=>r.gp||r.sta||r.min);
+  const rangeGP   =getColRange(validRows,'gp');
+  const rangeSta  =getColRange(validRows,'sta');
+  const rangeMin  =getColRange(validRows,'min');
+  const rangeGoals=player.isGK?null:getColRange(validRows,'goals');
+  const rangeAst  =player.isGK?null:getColRange(validRows,'ast');
+  const rangeGC   =player.isGK?getColRange(validRows,'gc'):null;
+  const rangeYC   =getColRange(validRows,'yc');
+  const tot=player.totals;
+  const ranges={gp:rangeGP,sta:rangeSta,min:rangeMin,goals:rangeGoals,ast:rangeAst,gc:rangeGC,yc:rangeYC};
+  const GK_COLS  =[['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['GC','gc',true,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const OUT_COLS =[['Temp.','s',false,''],['Time','t',false,''],['Idade','age',false,'col-age'],['GP','gp',false,''],['Sta','sta',false,'col-sta'],['Min','min',false,''],['Gols','goals',false,''],['Ast','ast',false,''],['YC','yc',true,''],['RC','rc',true,'']];
+  const cols=player.isGK?GK_COLS:OUT_COLS;
+
+  function buildTbody(rows,sk,sd){
+    let sorted=[...rows];
+    if(sk){
+      sorted.sort((a,b)=>{
+        let av=a[sk],bv=b[sk];
+        if(sk==='s'||sk==='t'){av=av||'';bv=bv||'';return sd==='asc'?av.localeCompare(bv):bv.localeCompare(av);}
+        av=av??-1;bv=bv??-1;
+        return sd==='asc'?av-bv:bv-av;
+      });
+    }
+    let out='';
+    sorted.forEach(r=>{
+      const isBest=best&&r===best;
+      const rowClass=isBest?'best-season':'';
+      const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
+      out+=`<tr class="${rowClass}">`;
+      cols.forEach(([lbl,key,isNeg,cls])=>{
+        const val=r[key];
+        const rng=ranges[key]||null;
+        const st=(key!=='s'&&key!=='t'&&key!=='age')?cellStyle(val,rng,isNeg):'';
+        const display=key==='min'?fmtMin(val):fmt(val);
+        const extraTag=(key==='s')?bestTag:'';
+        const title=(key==='t')?` title="${val}"`:'';
+        out+=`<td class="${cls}" style="${st}"${title}>${display}${extraTag}</td>`;
+      });
+      out+='</tr>';
+    });
+    return out;
+  }
+  function buildTotRow(){
+    let out='<tr class="totals-row">';
+    cols.forEach(([lbl,key])=>{
+      if(key==='s'){out+=`<td>TOTAL</td>`;return;}
+      if(key==='t'||key==='age'){out+=`<td></td>`;return;}
+      const v=tot[key];
+      out+=`<td>${key==='min'?fmtMin(v):fmt(v)}</td>`;
+    });
+    out+='</tr>';
+    return out;
+  }
+
+  table.querySelector('tbody').innerHTML=buildTbody(validRows,key,newDir)+buildTotRow();
+}
+
+document.addEventListener('click', handleTableSort);
 
 function injectPhotos(){
   Object.entries(PHOTOS).forEach(([pid,src])=>{
