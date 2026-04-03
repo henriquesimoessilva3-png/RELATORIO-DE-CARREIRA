@@ -197,12 +197,54 @@ footer{text-align:center;padding:32px;border-top:1px solid var(--card-border);co
   .table-wrap{overflow:visible}
 }
 
-@media(max-width:720px){
-  .site-header{padding:16px 20px}
+/* ── MOBILE ──────────────────────────────── */
+@media(max-width:768px){
+
+  .site-header{padding:12px 16px;gap:10px;flex-wrap:wrap}
+  .header-logo{width:38px;height:38px;font-size:16px}
+  .header-titles h1{font-size:20px;letter-spacing:1px}
+  .header-titles p{display:none}
   .header-stats{display:none}
-  .controls{padding:12px 20px;top:72px}
-  .grid{padding:16px 20px;grid-template-columns:1fr;gap:16px}
-  .search-wrap input{width:150px}
+
+  .controls{
+    padding:8px 12px;gap:6px;top:62px;
+    flex-direction:column;align-items:stretch;
+  }
+  .controls-top{display:flex;gap:8px;align-items:center}
+  .search-wrap{flex:1}
+  .search-wrap input{width:100%;font-size:14px}
+  .btn-icon{padding:7px 12px;font-size:12px;justify-content:center;flex:1}
+  .btn-icon-text{display:none}
+
+  .filter-tabs{
+    display:flex;gap:5px;flex-wrap:nowrap;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding-bottom:2px;flex:unset;
+  }
+  .filter-tabs::-webkit-scrollbar{display:none}
+  .tab{flex-shrink:0;padding:5px 10px;font-size:11px}
+
+  .grid{padding:10px 10px;grid-template-columns:1fr;gap:12px}
+
+  .card-header{padding:12px 12px;gap:10px}
+  .player-photo{width:58px;height:58px}
+  .photo-number{font-size:20px}
+  .card-name{font-size:17px}
+  .card-pos{font-size:9px;padding:2px 6px}
+  .card-num{font-size:13px}
+  .card-totals{gap:8px;margin-top:8px}
+  .total-val{font-size:15px}
+  .total-lbl{font-size:8px}
+  .divider{display:none}
+
+  table{font-size:11px}
+  thead th{padding:5px 6px;font-size:9px;letter-spacing:.3px}
+  td{padding:5px 6px}
+  td:nth-child(2){max-width:100px}
+  .totals-row td{font-size:11px}
+  .best-label{font-size:8px;padding:1px 4px}
+
+  footer{padding:20px 14px;font-size:11px}
 }
 
 </style>
@@ -224,16 +266,20 @@ footer{text-align:center;padding:32px;border-top:1px solid var(--card-border);co
 </header>
 
 <div class="controls">
-  <div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="search" placeholder="Buscar jogador…" oninput="renderAll()">
+  <div class="controls-top" style="display:flex;gap:8px;align-items:center;width:100%">
+    <div class="search-wrap" style="flex:1">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search" placeholder="Buscar jogador…" oninput="renderAll()">
+    </div>
+    <button class="btn-icon" id="theme-btn" onclick="toggleTheme()" style="flex-shrink:0">
+      <span class="btn-icon-text">☀️ </span>Claro
+    </button>
+    <button class="btn-icon" onclick="printReport()" style="flex-shrink:0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span class="btn-icon-text">PDF</span>
+    </button>
   </div>
   <div class="filter-tabs" id="tabs"></div>
-  <button class="btn-icon" id="theme-btn" onclick="toggleTheme()">☀️ Claro</button>
-  <button class="btn-icon" onclick="printReport()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-    Exportar PDF
-  </button>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -955,8 +1001,8 @@ function renderPlayer(player){
   }
 
   const thead=player.isGK
-    ?`<tr><th>Temp.</th><th>Time</th><th>Idade</th><th>GP</th><th>Sta</th><th>Min</th><th>GC</th><th>YC</th><th>RC</th></tr>`
-    :`<tr><th>Temp.</th><th>Time</th><th>Idade</th><th>GP</th><th>Sta</th><th>Min</th><th>Gols</th><th>Ast</th><th>YC</th><th>RC</th></tr>`;
+    ?`<tr><th>Temp.</th><th>Time</th><th class="col-age">Idade</th><th>GP</th><th class="col-sta">Sta</th><th>Min</th><th>GC</th><th>YC</th><th>RC</th></tr>`
+    :`<tr><th>Temp.</th><th>Time</th><th class="col-age">Idade</th><th>GP</th><th class="col-sta">Sta</th><th>Min</th><th>Gols</th><th>Ast</th><th>YC</th><th>RC</th></tr>`;
 
   let tbody='';
   validRows.forEach(r=>{
@@ -965,9 +1011,9 @@ function renderPlayer(player){
     const bestTag=isBest?`<span class="best-label">★ Melhor</span>`:'';
     if(player.isGK){
       tbody+=`<tr class="${rowClass}">
-        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td>${fmt(r.age)}</td>
+        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td class="col-age">${fmt(r.age)}</td>
         <td style="${cellStyle(r.gp,rangeGP)}">${fmt(r.gp)}</td>
-        <td style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
+        <td class="col-sta" style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
         <td style="${cellStyle(r.min,rangeMin)}">${fmtMin(r.min)}</td>
         <td style="${cellStyle(r.gc,rangeGC,true)}">${fmt(r.gc)}</td>
         <td style="${cellStyle(r.yc,rangeYC,true)}">${fmt(r.yc)}</td>
@@ -975,9 +1021,9 @@ function renderPlayer(player){
       </tr>`;
     }else{
       tbody+=`<tr class="${rowClass}">
-        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td>${fmt(r.age)}</td>
+        <td>${r.s}${bestTag}</td><td title="${r.t}">${r.t}</td><td class="col-age">${fmt(r.age)}</td>
         <td style="${cellStyle(r.gp,rangeGP)}">${fmt(r.gp)}</td>
-        <td style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
+        <td class="col-sta" style="${cellStyle(r.sta,rangeSta)}">${fmt(r.sta)}</td>
         <td style="${cellStyle(r.min,rangeMin)}">${fmtMin(r.min)}</td>
         <td style="${cellStyle(r.goals,rangeGoals)}">${fmt(r.goals)}</td>
         <td style="${cellStyle(r.ast,rangeAst)}">${fmt(r.ast)}</td>
