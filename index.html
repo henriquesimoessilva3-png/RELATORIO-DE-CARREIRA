@@ -1013,15 +1013,16 @@ function renderPlayer(player){
   const ranges = {gp:rangeGP,sta:rangeSta,min:rangeMin,goals:rangeGoals,ast:rangeAst,gc:rangeGC,yc:rangeYC};
 
   function buildTbody(rows, sortKey, sortDir){
-    let sorted = [...rows];
+    // tag original index for stable sort tiebreaker
+    const tagged = rows.map((r,i)=>({...r,_i:i}));
+    let sorted = [...tagged];
     if(sortKey){
       sorted.sort((a,b)=>{
         let av=a[sortKey], bv=b[sortKey];
-        // season string sort: treat as string chronological
-        if(sortKey==='s'){ av=av||''; bv=bv||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
-        if(sortKey==='t'){ av=av||''; bv=bv||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
+        if(sortKey==='s'){ av=av||''; bv=bv||''; const c=sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); return c!==0?c:a._i-b._i; }
+        if(sortKey==='t'){ av=av||''; bv=bv||''; const c=sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); return c!==0?c:a._i-b._i; }
         av=av??-1; bv=bv??-1;
-        return sortDir==='asc'?av-bv:bv-av;
+        const c=sortDir==='asc'?av-bv:bv-av; return c!==0?c:a._i-b._i;
       });
     }
     let out='';
@@ -1131,13 +1132,14 @@ function handleTableSort(e){
   const cols=player.isGK?GK_COLS:OUT_COLS;
 
   function buildTbody(rows,sk,sd){
-    let sorted=[...rows];
+    const tagged=rows.map((r,i)=>({...r,_i:i}));
+    let sorted=[...tagged];
     if(sk){
       sorted.sort((a,b)=>{
         let av=a[sk],bv=b[sk];
-        if(sk==='s'||sk==='t'){av=av||'';bv=bv||'';return sd==='asc'?av.localeCompare(bv):bv.localeCompare(av);}
+        if(sk==='s'||sk==='t'){av=av||'';bv=bv||'';const c=sd==='asc'?av.localeCompare(bv):bv.localeCompare(av);return c!==0?c:a._i-b._i;}
         av=av??-1;bv=bv??-1;
-        return sd==='asc'?av-bv:bv-av;
+        const c=sd==='asc'?av-bv:bv-av;return c!==0?c:a._i-b._i;
       });
     }
     let out='';
